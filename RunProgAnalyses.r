@@ -7,7 +7,7 @@ args = commandArgs(trailingOnly=TRUE)
 InFile = args[1]
 OutFile = 'ProgAnaOut'
 
-EndPt = c('COLORECTAL', 'PROSTATE', 'BREAST', 'CHD', 'HF', 'AF', 'CKD', 'AD', 'T2D', 'STR', 'CVD_HARD' )
+EndPt = c('COLORECTAL', 'PROSTATE', 'BREAST', 'CHD', 'HF', 'AF', 'CKD', 'AD', 'T2D', 'STR' )
 SurvMin = 0.25
 
 Input = fread(InFile)
