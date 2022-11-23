@@ -19,4 +19,4 @@ where `InputGeno` is the prefix of your input individual level genotype file (in
 
 `k` is the column index in the weight file that has the variant weight (index for MegaPRSweight column in the files provided);
 
-`OutputPrefix` is the prefix of your output scores. You should get a .log file and a .sscore file. The `SCORE1_AVG` column is the PRS to be used. To make it easier creating the input for the analysis, you can rename it as *`EndPtCode`*`_PRS`.
+`OutputPrefix` is the prefix of your output scores. You should get a .log file and a .sscore file. The `SCORE1_AVG` column is the PRS to be used. To make it easier creating the input for the analysis, you can rename it as *`EndPtCode_PRS`*.
