@@ -30,7 +30,8 @@ for (item in EndPt) {
   }
   
   Input[[paste(item, "_SurvTime", sep = "")]] = Input$AgeEndFollow - Input[[paste(item, "_Age", sep = "")]]
-  ColIn = append(Covar, c(item, "AgeStartFollow", "LongScore", "Death1", paste(item, "_PRS", sep = ""), paste(item, "_Age", sep = ""), paste(item, "_SurvTime", sep = ""), paste(item, "_Death2", sep = ""), paste(item, "_Death3", sep = "")))
+  # ColIn = append(Covar, c(item, "AgeStartFollow", "LongScore", "Death1", paste(item, "_PRS", sep = ""), paste(item, "_Age", sep = ""), paste(item, "_SurvTime", sep = ""), paste(item, "_Death2", sep = ""), paste(item, "_Death3", sep = "")))
+  ColIn = append(Covar, c(item, "AgeStartFollow", "LongScore", "Death", paste(item, "_PRS", sep = ""), paste(item, "_Age", sep = ""), paste(item, "_SurvTime", sep = ""), paste(item, "_Death", sep = "")))
   ItemIn = Input[, ..ColIn]
   ItemIn = ItemIn[ItemIn[[paste(item, "_Age", sep = "")]] >= 0, ]
   ItemIn = ItemIn[complete.cases(ItemIn), ]
@@ -80,7 +81,8 @@ for (item in EndPt) {
       data = data[complete.cases(data), ]
       nSample = nrow(data)
       for (Predictor in c(paste("scale(", item, "_PRS)", sep = ""), "scale(LongScore)")) {
-        for (Target in c("Death1", paste(item, "_Death2", sep = ""), paste(item, "_Death3", sep = ""))) {
+        # for (Target in c("Death1", paste(item, "_Death2", sep = ""), paste(item, "_Death3", sep = ""))) {
+        for (Target in c("Death", paste(item, "_Death", sep = ""))) {
           nEvent = sum(data[[Target]])
           for (AnaCovar in c(CovarList, paste(CovarList, "+", item, "_Age", sep = ""))) {
             model = "CoxPh"
