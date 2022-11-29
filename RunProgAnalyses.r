@@ -18,8 +18,8 @@ Input = Input[Input$AgeEndFollow >= 0, ]
 Input = Input[Input$AgeStartFollow >= 0, ]
 Input = Input[Input$AgeEndFollow >= Input$AgeStartFollow, ]
 
-Res = data.frame(matrix(ncol = 13, nrow = 0))
-colnames(Res) = c("Disease", "Target", "Predictor", "Model", "MaxSurvTime", "Sample", "AgeBin", "Beta", "SE", "Pval", "nEvent", "nTotSample", "AnaFlag")
+Res = data.frame(matrix(ncol = 14, nrow = 0))
+colnames(Res) = c("Disease", "Target", "Predictor", "Model", "MaxSurvTime", "Sample", "AgeGrp", "AgeGrpCutoff", "Beta", "SE", "Pval", "nEvent", "nTotSample", "AnaFlag")
 
 for (item in EndPt) {
   if(item %in% colnames(Input)) {
@@ -38,18 +38,17 @@ for (item in EndPt) {
     EndPtAll = EndPtAll[EndPtAll[[paste(item, "_Age", sep = "")]] >= 0, ]
     EndPtAll = EndPtAll[complete.cases(EndPtAll), ]
     
+    Cutoff = quantile(EndPtAll$AgeEndFollow, 0.5)
+    AgeGrpCutoff = paste("Median_AgeEndFollow", Cutoff, sep = "=")
     for (AgeGrp in c("All", "Lower", "Upper")) {
       if (AgeGrp == "All") {
-        AgeBin = "AllAge"
         ItemIn = EndPtAll
       }
       if (AgeGrp == "Lower") {
-        AgeBin = paste("AgeOnset<", quantile(EndPtAll$AgeEndFollow, 0.5), sep = "")
-        ItemIn = EndPtAll[EndPtAll$AgeEndFollow < quantile(EndPtAll$AgeEndFollow, 0.5),]
+        ItemIn = EndPtAll[EndPtAll$AgeEndFollow < Cutoff,]
       }
       if (AgeGrp == "Upper") {
-        AgeBin = paste("AgeOnset>=", quantile(EndPtAll$AgeEndFollow, 0.5), sep = "")
-        ItemIn = EndPtAll[EndPtAll$AgeEndFollow >= quantile(EndPtAll$AgeEndFollow, 0.5),]
+        ItemIn = EndPtAll[EndPtAll$AgeEndFollow >= Cutoff,]
       }
       nSample = nrow(ItemIn)
       nEvent = sum(ItemIn[[item]])
@@ -64,11 +63,11 @@ for (item in EndPt) {
         b = summary(m)$coefficient[Predictor, "Estimate"]
         se = summary(m)$coefficient[Predictor, "Std. Error"]
         p = summary(m)$coefficient[Predictor, "Pr(>|z|)"]
-        Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeBin, b, se, p, nEvent, nSample, Flag)
+        Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
         rm(m, b, se, p)
       }
       else {
-        Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeBin, "-", "-", "-", nEvent, nSample, Flag)
+        Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
       }
 
       Flag = 0
@@ -80,27 +79,26 @@ for (item in EndPt) {
         b = summary(m)$coefficient[Predictor,"coef"]
         se = summary(m)$coefficient[Predictor,"se(coef)"]
         p = summary(m)$coefficient[Predictor,"Pr(>|z|)"]
-        Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeBin, b, se, p, nEvent, nSample, Flag)
+        Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
         rm(m, b, se, p)
       }
       else {
-        Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeBin, "-", "-", "-", nEvent, nSample, Flag)
+        Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
       }
     }
 
     EndPtCase = EndPtAll[EndPtAll[[item]] == 1,]
+    Cutoff = quantile(EndPtCase[[paste(item, "_Age", sep = "")]], 0.5)
+    AgeGrpCutoff = paste("Median_AgeOnset", Cutoff, sep = "=")
     for (AgeGrp in c("All", "Lower", "Upper")) {
       if (AgeGrp == "All") {
-        AgeBin = "AllAge"
         ItemIn = EndPtCase
       }
       if (AgeGrp == "Lower") {
-        AgeBin = paste("AgeOnset<", quantile(EndPtCase[[paste(item, "_Age", sep = "")]], 0.5), sep = "")
-        ItemIn = EndPtCase[EndPtCase[[paste(item, "_Age", sep = "")]] < quantile(EndPtCase[[paste(item, "_Age", sep = "")]], 0.5),]
+        ItemIn = EndPtCase[EndPtCase[[paste(item, "_Age", sep = "")]] < Cutoff,]
       }
       if (AgeGrp == "Upper") {
-        AgeBin = paste("AgeOnset>=", quantile(EndPtCase[[paste(item, "_Age", sep = "")]], 0.5), sep = "")
-        ItemIn = EndPtCase[EndPtCase[[paste(item, "_Age", sep = "")]] >= quantile(EndPtCase[[paste(item, "_Age", sep = "")]], 0.5),]
+        ItemIn = EndPtCase[EndPtCase[[paste(item, "_Age", sep = "")]] >= Cutoff,]
       }
 
       for (SurvMax in c(2, 5, 10, 999)) {
@@ -129,11 +127,11 @@ for (item in EndPt) {
                   b = summary(m)$coefficient[Predictor,"coef"]
                   se = summary(m)$coefficient[Predictor,"se(coef)"]
                   p = summary(m)$coefficient[Predictor,"Pr(>|z|)"]
-                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeBin, b, se, p, nEvent, nSample, Flag)
+                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
                   rm(m, b, se, p)
                 }
                 else {
-                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeBin, "-", "-", "-", nEvent, nSample, Flag)
+                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
                 }
 
                 model = "Logit"
@@ -149,11 +147,11 @@ for (item in EndPt) {
                   b = summary(m)$coefficient[Predictor, "Estimate"]
                   se = summary(m)$coefficient[Predictor, "Std. Error"]
                   p = summary(m)$coefficient[Predictor, "Pr(>|z|)"]
-                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeBin, b, se, p, nEvent, nSample, Flag)
+                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
                   rm(m, b, se, p)
                 }
                 else {
-                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeBin, "-", "-", "-", nEvent, nSample, Flag)
+                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
                 }
               }
             }
@@ -170,11 +168,11 @@ for (item in EndPt) {
             b = summary(m)$coefficient[Predictor, "Estimate"]
             se = summary(m)$coefficient[Predictor, "Std. Error"]
             p = summary(m)$coefficient[Predictor, "Pr(>|t|)"]
-            Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", SurvMax, Sample, AgeBin, b, se, p, nEvent, nSample, Flag)
+            Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
             rm(m, b, se, p)
           }
           else {
-            Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", SurvMax, Sample, AgeBin, "-", "-", "-", nEvent, nSample, Flag)
+            Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
           }
         }
       }
