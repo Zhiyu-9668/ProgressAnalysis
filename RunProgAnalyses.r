@@ -174,6 +174,42 @@ for (item in EndPt) {
           else {
             Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
           }
+          
+          Target = paste(item, "_Death", sep = "")
+          InterAct = paste("scale(", item, "_PRS)*", item, "_Age", sep = "")
+          Flag = 0
+          form = paste(Target," ~ ", InterAct, " + ", CovarList, sep = "")
+          m = withCallingHandlers(tryCatch({lm(as.formula(form), data = data, na.action=na.exclude)}, 
+                                           error = function(e){Flag <<- 2; return(NULL)}),
+                                  warning=function(w) {Flag <<- 1; invokeRestart("muffleWarning")})
+          if (!is.null(m)) {
+            b = summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Estimate"]
+            se = summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Std. Error"]
+            p = summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Pr(>|t|)"]
+            Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+            rm(m, b, se, p)
+          }
+          else {
+            Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
+          }
+
+          Target = "Death"
+          InterAct = paste("scale(LongScore)*", item, "_Age", sep = "")
+          Flag = 0
+          form = paste(Target," ~ ", InterAct, " + ", CovarList, sep = "")
+          m = withCallingHandlers(tryCatch({lm(as.formula(form), data = data, na.action=na.exclude)}, 
+                                           error = function(e){Flag <<- 2; return(NULL)}),
+                                  warning=function(w) {Flag <<- 1; invokeRestart("muffleWarning")})
+          if (!is.null(m)) {
+            b = summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Estimate"]
+            se = summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Std. Error"]
+            p = summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Pr(>|t|)"]
+            Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+            rm(m, b, se, p)
+          }
+          else {
+            Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
+          }
         }
       }
     }
