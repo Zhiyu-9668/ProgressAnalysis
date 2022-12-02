@@ -38,6 +38,13 @@ for (item in EndPt) {
     EndPtAll = EndPtAll[EndPtAll[[paste(item, "_Age", sep = "")]] >= 0, ]
     EndPtAll = EndPtAll[complete.cases(EndPtAll), ]
     
+    if (item == "BREAST") {
+      EndPtAll = EndPtAll[EndPtAll$Sex=="female",]
+    }
+    if (item == "PROSTATE") {
+      EndPtAll = EndPtAll[EndPtAll$Sex=="male",]
+    }
+    
     Cutoff = quantile(EndPtAll$AgeEndFollow, 0.5)
     AgeGrpCutoff = paste("Median_AgeEndFollow", Cutoff, sep = "=")
     for (AgeGrp in c("All", "Lower", "Upper")) {
