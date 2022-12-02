@@ -20,13 +20,12 @@ Input = Input[Input$AgeEndFollow >= Input$AgeStartFollow, ]
 
 Res = data.frame(matrix(ncol = 14, nrow = 0))
 colnames(Res) = c("Disease", "Target", "Predictor", "Model", "MaxSurvTime", "Sample", "AgeGrp", "AgeGrpCutoff", "Beta", "SE", "Pval", "nEvent", "nTotSample", "AnaFlag")
+Covar = c('BirthYear','Sex','PC1','PC2','PC3','PC4','PC5','PC6','PC7','PC8','PC9','PC10')
 
 for (item in EndPt) {
   if(item %in% colnames(Input)) {
-    Covar = c('BirthYear','Sex','PC1','PC2','PC3','PC4','PC5','PC6','PC7','PC8','PC9','PC10')
     CovarList = 'BirthYear+Sex+PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10'
     if (item == "BREAST" | item == "PROSTATE") {
-      Covar = c('BirthYear','PC1','PC2','PC3','PC4','PC5','PC6','PC7','PC8','PC9','PC10')
       CovarList = 'BirthYear+PC1+PC2+PC3+PC4+PC5+PC6+PC7+PC8+PC9+PC10'
     }
 
