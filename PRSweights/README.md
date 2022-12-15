@@ -4,7 +4,7 @@ Weigths to compute PRS used in this project. The `LONGscore` file is weights for
 
 HG37 folder includes weights for endpoints with rsids, chromosome position under human genome build 37; and HG38 folder includes weights for endpoints with chromosome position under human genome build 38 *without rsids*. Please selecct from these two based on your convinence.
 
-To compute PRS, the easiest way is using [plink2 --score](https://www.cog-genomics.org/plink/1.9/score) command. The syntex looks like below:
+To compute PRS, the easiest way is using [plink2 --score](https://www.cog-genomics.org/plink/2.0/score) command. The syntex looks like below:
 
 ```
 plink2 --bfile InputGeno --score PRSweight i j k header --out OutputPrefix
