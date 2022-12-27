@@ -66,10 +66,15 @@ for (item in EndPt) {
                                        error = function(e){Flag <<- 2; return(NULL)}),
                               warning=function(w) {Flag <<- 1; invokeRestart("muffleWarning")})
       if (!is.null(m)) {
-        b = summary(m)$coefficient[Predictor, "Estimate"]
-        se = summary(m)$coefficient[Predictor, "Std. Error"]
-        p = summary(m)$coefficient[Predictor, "Pr(>|z|)"]
-        Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+        b = try(summary(m)$coefficient[Predictor, "Estimate"], silent = TRUE)
+        se = try(summary(m)$coefficient[Predictor, "Std. Error"], silent = TRUE)
+        p = try(summary(m)$coefficient[Predictor, "Pr(>|z|)"], silent = TRUE)
+        if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
+          Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
+        }
+        else {
+          Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+        }
         rm(m, b, se, p)
       }
       else {
@@ -82,10 +87,15 @@ for (item in EndPt) {
                                        error = function(e){Flag <<- 2; return(NULL)}),
                               warning=function(w) {Flag <<- 1; invokeRestart("muffleWarning")})
       if (!is.null(m)) {
-        b = summary(m)$coefficient[Predictor,"coef"]
-        se = summary(m)$coefficient[Predictor,"se(coef)"]
-        p = summary(m)$coefficient[Predictor,"Pr(>|z|)"]
-        Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+        b = try(summary(m)$coefficient[Predictor,"coef"], silent = TRUE)
+        se = try(summary(m)$coefficient[Predictor,"se(coef)"], silent = TRUE)
+        p = try(summary(m)$coefficient[Predictor,"Pr(>|z|)"], silent = TRUE)
+        if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
+          Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
+        }
+        else {
+          Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+        }
         rm(m, b, se, p)
       }
       else {
@@ -130,10 +140,15 @@ for (item in EndPt) {
                                                  error = function(e){Flag <<- 2; return(NULL)}),
                                         warning=function(w) {Flag <<- 1; invokeRestart("muffleWarning")})
                 if (!is.null(m)) {
-                  b = summary(m)$coefficient[Predictor,"coef"]
-                  se = summary(m)$coefficient[Predictor,"se(coef)"]
-                  p = summary(m)$coefficient[Predictor,"Pr(>|z|)"]
-                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+                  b = try(summary(m)$coefficient[Predictor,"coef"], silent = TRUE)
+                  se = try(summary(m)$coefficient[Predictor,"se(coef)"], silent = TRUE)
+                  p = try(summary(m)$coefficient[Predictor,"Pr(>|z|)"], silent = TRUE)
+                  if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
+                    Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
+                  }
+                  else {
+                    Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+                  }
                   rm(m, b, se, p)
                 }
                 else {
@@ -150,10 +165,15 @@ for (item in EndPt) {
                                                  error = function(e){Flag <<- 2; return(NULL)}),
                                         warning=function(w) {Flag <<- 1; invokeRestart("muffleWarning")})
                 if (!is.null(m)) {
-                  b = summary(m)$coefficient[Predictor, "Estimate"]
-                  se = summary(m)$coefficient[Predictor, "Std. Error"]
-                  p = summary(m)$coefficient[Predictor, "Pr(>|z|)"]
-                  Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+                  b = try(summary(m)$coefficient[Predictor, "Estimate"], silent = TRUE)
+                  se = try(summary(m)$coefficient[Predictor, "Std. Error"], silent = TRUE)
+                  p = try(summary(m)$coefficient[Predictor, "Pr(>|z|)"], silent = TRUE)
+                  if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
+                    Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
+                  }
+                  else {
+                    Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+                  }
                   rm(m, b, se, p)
                 }
                 else {
@@ -178,10 +198,15 @@ for (item in EndPt) {
                                      error = function(e){Flag <<- 2; return(NULL)}),
                             warning=function(w) {Flag <<- 1; invokeRestart("muffleWarning")})
     if (!is.null(m)) {
-      b = summary(m)$coefficient[Predictor, "Estimate"]
-      se = summary(m)$coefficient[Predictor, "Std. Error"]
-      p = summary(m)$coefficient[Predictor, "Pr(>|t|)"]
-      Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", 999, "All", "All", AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+      b = try(summary(m)$coefficient[Predictor, "Estimate"], silent = TRUE)
+      se = try(summary(m)$coefficient[Predictor, "Std. Error"], silent = TRUE)
+      p = try(summary(m)$coefficient[Predictor, "Pr(>|t|)"], silent = TRUE)
+      if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
+        Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", 999, "All", "All", AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
+      }
+      else {
+        Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", 999, "All", "All", AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+      }
       rm(m, b, se, p)
     }
     else {
@@ -197,10 +222,15 @@ for (item in EndPt) {
                                      error = function(e){Flag <<- 2; return(NULL)}),
                             warning=function(w) {Flag <<- 1; invokeRestart("muffleWarning")})
     if (!is.null(m)) {
-      b = summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Estimate"]
-      se = summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Std. Error"]
-      p = summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Pr(>|t|)"]
-      Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+      b = try(summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Estimate"], silent = TRUE) 
+      se = try(summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Std. Error"], silent = TRUE)
+      p = try(summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Pr(>|t|)"], silent = TRUE)
+      if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
+        Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
+      }
+      else {
+        Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+      }
       rm(m, b, se, p)
     }
     else {
@@ -216,10 +246,15 @@ for (item in EndPt) {
                                      error = function(e){Flag <<- 2; return(NULL)}),
                             warning=function(w) {Flag <<- 1; invokeRestart("muffleWarning")})
     if (!is.null(m)) {
-      b = summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Estimate"]
-      se = summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Std. Error"]
-      p = summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Pr(>|t|)"]
-      Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+      b = try(summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Estimate"], silent = TRUE)
+      se = try(summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Std. Error"], silent = TRUE)
+      p = try(summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Pr(>|t|)"], silent = TRUE)
+      if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
+        Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
+      }
+      else {
+        Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
+      }
       rm(m, b, se, p)
     }
     else {
