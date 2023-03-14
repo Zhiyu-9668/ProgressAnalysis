@@ -71,13 +71,11 @@ for (item in EndPt) {
         p = try(summary(m)$coefficient[Predictor, "Pr(>|z|)"], silent = TRUE)
         if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
           Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
-        }
-        else {
+        } else {
           Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
         }
         rm(m, b, se, p)
-      }
-      else {
+      } else {
         Res[nrow(Res) + 1,] = c(item, "Incidence", Predictor, "Logit", 999, "All", AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
       }
 
@@ -92,13 +90,11 @@ for (item in EndPt) {
         p = try(summary(m)$coefficient[Predictor,"Pr(>|z|)"], silent = TRUE)
         if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
           Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
-        }
-        else {
+        } else {
           Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
         }
         rm(m, b, se, p)
-      }
-      else {
+      } else {
         Res[nrow(Res) + 1,] = c(item, "TimeToOnset", Predictor, "CoxPh", 999, "All", AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
       }
     }
@@ -145,13 +141,11 @@ for (item in EndPt) {
                   p = try(summary(m)$coefficient[Predictor,"Pr(>|z|)"], silent = TRUE)
                   if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
                     Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
-                  }
-                  else {
+                  } else {
                     Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
                   }
                   rm(m, b, se, p)
-                }
-                else {
+                } else {
                   Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
                 }
 
@@ -170,13 +164,11 @@ for (item in EndPt) {
                   p = try(summary(m)$coefficient[Predictor, "Pr(>|z|)"], silent = TRUE)
                   if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
                     Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
-                  }
-                  else {
+                  } else {
                     Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
                   }
                   rm(m, b, se, p)
-                }
-                else {
+                } else {
                   Res[nrow(Res) + 1,] = c(item, Target, Predictor, model, SurvMax, Sample, AgeGrp, AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
                 }
               }
@@ -203,13 +195,11 @@ for (item in EndPt) {
       p = try(summary(m)$coefficient[Predictor, "Pr(>|t|)"], silent = TRUE)
       if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
         Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", 999, "All", "All", AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
-      }
-      else {
+      } else {
         Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", 999, "All", "All", AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
       }
       rm(m, b, se, p)
-    }
-    else {
+    } else {
       Res[nrow(Res) + 1,] = c(item, Target, Predictor, "Linear", 999, "All", "All", AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
     }
 
@@ -227,13 +217,11 @@ for (item in EndPt) {
       p = try(summary(m)$coefficient[paste("scale(", item, "_PRS):", item, "_Age", sep = ""), "Pr(>|t|)"], silent = TRUE)
       if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
         Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
-      }
-      else {
+      } else {
         Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
       }
       rm(m, b, se, p)
-    }
-    else {
+    } else {
       Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
     }
 
@@ -251,13 +239,11 @@ for (item in EndPt) {
       p = try(summary(m)$coefficient[paste("scale(LongScore):", item, "_Age", sep = ""), "Pr(>|t|)"], silent = TRUE)
       if (class(b)=="try-error" | class(se)=="try-error" | class(p)=="try-error") {
         Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
-      }
-      else {
+      } else {
         Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, b, se, p, nEvent, nSample, Flag)
       }
       rm(m, b, se, p)
-    }
-    else {
+    } else {
       Res[nrow(Res) + 1,] = c(item, Target, InterAct, "CoxPh", 999, "All", "All", AgeGrpCutoff, "-", "-", "-", nEvent, nSample, Flag)
     }
   }
