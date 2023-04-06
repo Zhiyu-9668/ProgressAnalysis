@@ -117,7 +117,7 @@ for (item in EndPt) {
         for (Sample in c('All', 'DiagAfterJoin')) {
           data = ItemIn[(ItemIn[[paste(item, "_SurvTime", sep = "")]] > SurvMin) & (ItemIn[[paste(item, "_SurvTime", sep = "")]] < SurvMax), ]
           if (Sample == 'DiagAfterJoin') {
-            data = data[data$AgeStartFollow > data[[paste(item, "_Age", sep = "")]], ]
+            data = data[data$AgeStartFollow < data[[paste(item, "_Age", sep = "")]], ]
           }
           data = data[complete.cases(data), ]
           nSample = nrow(data)
