@@ -1,0 +1,914 @@
+---
+title: "MetaAnaPRS"
+output: html_document
+date: "2023-04-05"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Read input, output prefix
+
+```{r input}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(data.table)
+library(gridExtra)
+
+colorBlindBlack8 = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+
+OutFile = '/Users/yangzhiy/Documents/Progression/Output/MetaAna/MetaPRS_FinnGenR12'
+
+PRSres1 = "/Users/yangzhiy/Documents/Progression/Output/FinnGen/ResDownloadR12/PRS/ProgAnaOut"
+PRSres2 = "/Users/yangzhiy/Documents/Progression/Output/EstoniaBB/EstBB-EUR-ProgAnaOut"
+PRSres3 = "/Users/yangzhiy/Documents/Progression/Output/GenScotland/GenerationScotland-EUR-ProgAnaOut"
+PRSres4 = "/Users/yangzhiy/Documents/Progression/Output/MGHside/DFCIProfile-EUR-ProgAnaOut"
+PRSres5 = "/Users/yangzhiy/Documents/Progression/Output/GenomeEngland/GenomicsEngland-EUR-ProgAnaOut-20220531.tsv"
+PRSres6 = "/Users/yangzhiy/Documents/Progression/Output/BioMe/BioMe-Andrea-PRS-Prog/BioMe-EUR-ProgAnaOut"
+
+PRSres = c(PRSres1, PRSres2, PRSres3, PRSres4, PRSres5, PRSres6)
+biobank = c('Finngen', 'EstBB', 'GenScotland', 'DFCI', 'GenomeEngland', 'BioMe')
+
+extract_legend <- function(my_ggp) {
+  step1 <- ggplot_gtable(ggplot_build(my_ggp))
+  step2 <- which(sapply(step1$grobs, function(x) x$name) == "guide-box")
+  step3 <- step1$grobs[[step2]]
+  return(step3)
+}
+```
+
+
+Initialize Res
+
+
+```{r IntRes, echo=FALSE}
+Res = fread(PRSres[1])
+Res = Res[!grepl("_mortality_PRS", Res$Predictor),]
+Res$Source = biobank[1]
+Res$Beta = as.numeric(Res$Beta)
+Res$SE = as.numeric(Res$SE)
+Res$w = 1/(Res$SE^2)
+# Res[Res$AnaFlag != 0,'w'] = 0.0
+Res[Res$nEvent < 10,'w'] = 0.0
+Res[is.na(Res$Beta) | is.na(Res$SE) | is.na(Res$Pval),'Beta'] = 0.0
+Res[Res$Beta == 0.0 | Res$SE == 0.0,'w'] = 0.0
+Res[Res$w == 0,'nEvent'] = 0
+Res[Res$w == 0,'nTotSample'] = 0
+ResAll = Res
+Res = Res[, -c('AnaFlag', 'AgeGrpCutoff', 'Pval', 'SE', 'Source')]
+```
+
+Run meta analysis
+
+```{r MetaAna}
+for (i in 2:length(PRSres))  {
+  res = fread(PRSres[i])
+  res$Source = biobank[i]
+  res$Beta = as.numeric(res$Beta)
+  res$SE = as.numeric(res$SE)
+  res$w = 1/(res$SE^2)
+  # res[res$AnaFlag != 0,'w'] = 0.0
+  res[res$nEvent < 10,'w'] = 0.0
+  
+  res[is.na(res$Beta) | is.na(res$SE) | is.na(Res$Pval),'Beta'] = 0.0
+  res[res$Beta == 0.0 | res$SE == 0.0,'w'] = 0.0
+  res[res$w == 0,'nEvent'] = 0
+  res[res$w == 0,'nTotSample'] = 0
+  ResAll = rbind(ResAll,res)
+  res = res[, -c('AnaFlag', 'AgeGrpCutoff', 'Pval', 'SE', 'Source')]
+  
+  Res = merge(Res, res, by = names(Res)[1:7], all = T)
+  Res[is.na(Res$Beta.y), 'Beta.y'] = 0.0
+  Res[is.na(Res$nEvent.y), 'nEvent.y'] = 0
+  Res[is.na(Res$nTotSample.y), 'nTotSample.y'] = 0
+  Res[is.na(Res$w.y), 'w.y'] = 0.0
+  
+  Res$Beta = (Res$Beta.x*Res$w.x + Res$Beta.y*Res$w.y)/(Res$w.x + Res$w.y)
+  Res$SE = 1/sqrt(Res$w.x + Res$w.y)
+  Res$nEvent = Res$nEvent.x + Res$nEvent.y
+  Res$nTotSample = Res$nTotSample.x + Res$nTotSample.y
+  Res$w = 1/(Res$SE^2)
+  Res[is.na(Res$Beta) | is.na(Res$SE),'Beta'] = 0.0
+  Res[Res$Beta == 0.0 | Res$SE == 0.0,'w'] = 0.0
+  Res[Res$w == 0,'nEvent'] = 0
+  Res[Res$w == 0,'nTotSample'] = 0
+  Res = Res[, -c('Beta.x', 'nEvent.x', 'nTotSample.x', 'w.x', 'Beta.y', 'nEvent.y', 'nTotSample.y', 'w.y', 'SE')]
+  
+}
+
+Res$SE = 1/sqrt(Res$w)
+Res$AnaFlag = 0
+Res[Res$w == 0, 'AnaFlag'] = 1
+Res = Res[, -'w']
+fwrite(Res, OutFile, sep = '\t', row.names = F, quote = F)
+fwrite(ResAll, paste(OutFile, '-AllRes', sep = ''), sep = '\t', row.names = F, quote = F)
+Res = Res[Res$Disease != 'AF', ]
+fwrite(Res, paste(OutFile, '-noAF', sep = ''), sep = '\t', row.names = F, quote = F)
+ResAll = ResAll[ResAll$Disease != 'AF', ]
+fwrite(ResAll, paste(OutFile, '-AllResnoAF', sep = ''), sep = '\t', row.names = F, quote = F)
+```
+
+Read output if needed
+
+```{r readout}
+Res = fread(paste(OutFile, '-noAF', sep = ''))
+ResAll = fread(paste(OutFile, '-AllResnoAF', sep = ''))
+```
+
+
+
+Prep and filter results to make figures
+```{r Figure Prep}
+Res = Res[Res$AnaFlag == 0,]
+Res$Beta = as.numeric(Res$Beta)
+Res$SE = as.numeric(Res$SE)
+Res$Pval = as.numeric(Res$Pval)
+
+Res[Res$Predictor == 'scale(LongScore)', 'Beta'] = -Res[Res$Predictor == 'scale(LongScore)',]$Beta
+Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)', 'Beta'] = -Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)',]$Beta
+Res$Group = "Target"
+Res[Res$Disease == 'CKD', 'Group'] = 'Chronic kidney disease'
+Res[Res$Disease == 'CHD', 'Group'] = 'Coronary artery disease'
+Res[Res$Disease == 'T2D', 'Group'] = 'Type 2 diabetes'
+Res[Res$Disease == 'AD', 'Group'] = 'Alzheimer\'s disease'
+Res[Res$Disease == 'COLORECTAL', 'Group'] = 'Colorectal cancer'
+Res[Res$Disease == 'BREAST', 'Group'] = 'Breast cancer'
+Res[Res$Disease == 'PROSTATE', 'Group'] = 'Prostate cancer'
+# Res[Res$Disease == 'AF', 'Group'] = 'Atrial fibrillation'
+Res[Res$Disease == 'HF', 'Group'] = 'Heart failure'
+Res[Res$Disease == 'STR', 'Group'] = 'Stroke'
+
+Res[Res$Target == 'Death', 'Target'] = 'All cause mortality'
+Res[grepl("_Death", Res$Target), 'Target'] = 'Disease caused mortality'
+Res[Res$Target == 'TimeToOnset', 'Target'] = 'Age to disease onset'
+
+tmp = Res[Res$Target == 'Disease caused mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp$N = paste("N=", tmp$nTotSample, " (", tmp$nEvent, " deaths)", sep = '')
+tmp$title = paste(tmp$Group, '\n', tmp$N, sep = '')
+tmp = tmp[, c('Disease', 'title')]
+
+Res = merge(Res, tmp, by = 'Disease')
+
+# Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+#   'Atrial fibrillation', 'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart # failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+  'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+
+```
+
+
+Make main figure: meta-analyzed diagnosis PRS association with disease mortality
+```{r MainFig}
+PlotIn = Res[Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh',]
+PlotIn$OR = exp(PlotIn$Beta)
+PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+PlotIn = PlotIn[(!grepl("_Age", PlotIn$Predictor)) & (!PlotIn$Target == 'All cause mortality'),]
+PlotIn[PlotIn$Predictor == "scale(LongScore)", 'Predictor'] = "Longevity PRS"
+PlotIn[grepl("_PRS", PlotIn$Predictor), 'Predictor'] = "Disease susceptibility PRS"
+PlotIn$Predictor <- factor(PlotIn$Predictor, levels = c('Disease susceptibility PRS', 'Longevity PRS'))
+PlotIn$Target <- factor(PlotIn$Target, levels = c('Age to disease onset', 'Disease caused mortality'))
+
+PlotIn$alpha = 1
+PlotIn[PlotIn$Target == 'Age to disease onset', 'alpha'] = 0
+
+LowBound = min(PlotIn$lower)-0.01
+UpBound = max(PlotIn$upper)+0.01
+
+jpeg(paste(OutFile, '-Figure3.jpg', sep = ""), width = 1500, height = 1000, res = 150)
+fp <- ggplot(data = PlotIn[PlotIn$Predictor ==  'Disease susceptibility PRS',], aes(x = title,y = OR, ymin = lower, ymax=upper, color = Target, alpha = Target)) +
+  labs(title = "Susceptibility PGS association with disease-specific mortality or susceptibility") + 
+  scale_alpha_discrete(range = c(0, 1)) +
+  geom_pointrange(size = 0.5) +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = OR),color='black',lty='dashed') +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = lower),color='gray',lty='dashed') +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = upper),color='gray',lty='dashed') +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~title, nrow=10, scales = "free_y") + 
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) +
+  theme(text = element_text(size = 12), strip.background = element_blank(), strip.text = element_blank(), axis.title.y=element_blank() ) + 
+  scale_colour_manual(labels=c('Association with disease susceptibility', 'Association with disease-specific mortality'), values=c('black', colorBlindBlack8[2])) +
+  guides(alpha = FALSE) +
+  theme(legend.title = element_blank(), legend.position='bottom', plot.title = element_text(hjust = 0.5))
+print(fp)
+dev.off()
+
+fp <- ggplot(data = PlotIn[PlotIn$Predictor ==  'Disease susceptibility PRS',], aes(x = title,y = OR, ymin = lower, ymax=upper, color = Target, alpha = Target)) +
+  labs(title = "Susceptibility PGS association with disease-specific mortality or susceptibility") + 
+  scale_alpha_discrete(range = c(0, 1)) +
+  geom_pointrange(size = 0.5) +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = OR),color='black',lty='dashed') +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = lower),color='gray',lty='dashed') +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = upper),color='gray',lty='dashed') +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~title, nrow=10, scales = "free_y") + 
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) +
+  theme(text = element_text(size = 12), strip.background = element_blank(), strip.text = element_blank(), axis.title.y=element_blank(), panel.background = element_blank()) + 
+  scale_colour_manual(labels=c('Association with disease susceptibility', 'Association with disease-specific mortality'), values=c('black', colorBlindBlack8[2])) +
+  guides(alpha = FALSE) + 
+  theme(legend.title = element_blank(), legend.position='bottom', plot.title = element_text(hjust = 0.5))
+print(fp)
+ggsave(paste(OutFile, '-Figure3.pdf', sep = ""), fp, width=9, height=6, units="in")
+
+
+
+
+PlotIn = PlotIn[PlotIn$Target != 'Age to disease onset', ]
+LowBound = min(PlotIn$lower)-0.01
+UpBound = max(PlotIn$upper)+0.01
+
+jpeg(paste(OutFile, '-Figure4.jpg', sep = ""), width = 1500, height = 1000, res = 150)
+fp <- ggplot(data = PlotIn[PlotIn$Target != 'Age to disease onset',], aes(x = Predictor,y = OR, ymin = lower, ymax=upper, color = Predictor)) +
+  labs(title = "PGS association with disease-specific mortality") + 
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~title, strip.position="left",nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) + 
+  theme(text = element_text(size = 12), strip.background = element_blank(), axis.title.y=element_blank(), axis.text.y=element_blank(), legend.title = element_blank(), legend.position='bottom', strip.text.y.left = element_text(angle = 0), axis.ticks.y=element_blank(), plot.title = element_text(hjust = 0.5)) + 
+  scale_color_manual(breaks = c('Disease susceptibility PRS', 'Longevity PRS'), labels=c('Disease susceptibility PGS', 'Longevity PGS'), values=c(colorBlindBlack8[2], colorBlindBlack8[6])) 
+print(fp)
+dev.off()
+
+fp <- ggplot(data = PlotIn[PlotIn$Target != 'Age to disease onset',], aes(x = Predictor,y = OR, ymin = lower, ymax=upper, color = Predictor)) +
+  labs(title = "PGS association with disease-specific mortality") + 
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~title, strip.position="left",nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) + 
+  theme(text = element_text(size = 12), strip.background = element_blank(), axis.title.y=element_blank(), axis.text.y=element_blank(), legend.title = element_blank(), legend.position='bottom', strip.text.y.left = element_text(angle = 0), axis.ticks.y=element_blank(), plot.title = element_text(hjust = 0.5), panel.background = element_blank()) + 
+  scale_color_manual(breaks = c('Disease susceptibility PRS', 'Longevity PRS'), labels=c('Disease susceptibility PGS', 'Longevity PGS'), values=c(colorBlindBlack8[2], colorBlindBlack8[6])) 
+print(fp)
+ggsave(paste(OutFile, '-Figure4.pdf', sep = ""), fp, width=9, height=6, units="in")
+```
+
+
+
+
+
+
+
+
+Sensitivity analysis 1 diagnosed after join
+```{r sensAna1}
+PlotIn = Res[(Res$MaxSurvTime == 999 & Res$Sample == 'DiagAfterJoin' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh') | (Res$Target == 'Age to disease onset' &  Res$AgeGrp == 'All'),]
+PlotIn$OR = exp(PlotIn$Beta)
+PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+PlotIn = PlotIn[(!grepl("_Age", PlotIn$Predictor)) & (!PlotIn$Target == 'All cause mortality') & (PlotIn$Predictor != 'scale(LongScore)'),]
+PlotIn[grepl("_PRS", PlotIn$Predictor), 'Predictor'] = "Disease susceptibility PRS"
+PlotIn$Target <- factor(PlotIn$Target, levels = c('Age to disease onset', 'Disease caused mortality'))
+
+LowBound = min(PlotIn$lower)-0.01
+UpBound = max(PlotIn$upper)+0.01
+
+sensAna1 <- ggplot(data = PlotIn[PlotIn$Target != 'Age to disease onset' & PlotIn$Predictor ==  'Disease susceptibility PRS',], aes(x = Group,y = OR, ymin = lower, ymax=upper, color = Predictor)) +
+  labs(title = "Susceptibility PGS association with disease-specific mortality\nfor individuals diagnosed after enrollment", tag = "A") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = OR),color='black',lty='dashed') +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = lower),color='gray',lty='dashed') +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = upper),color='gray',lty='dashed') +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~Group, nrow=10, scales = "free_y") + 
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) +
+  theme(text = element_text(size = 12), strip.background = element_blank(), strip.text = element_blank()) + 
+  scale_color_manual(breaks = c('Disease susceptibility PRS'), values=c(colorBlindBlack8[2]), labels=c('Association with disease susceptibility')) +
+  theme(legend.title = element_blank(), legend.position='bottom', plot.title = element_text(hjust = 0.5))
+print(sensAna1)
+```
+
+
+Sensitivity analysis 2 Time of followup 
+```{r sensAna2}
+PlotIn = Res[(Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh' &  Res$AgeGrp == 'All'),]
+PlotIn$OR = exp(PlotIn$Beta)
+PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+PlotIn = PlotIn[(!grepl("_Age", PlotIn$Predictor)) & (!PlotIn$Target == 'All cause mortality') & (PlotIn$Predictor != 'scale(LongScore)'),]
+PlotIn[grepl("_PRS", PlotIn$Predictor), 'Predictor'] = "Disease susceptibility PRS"
+PlotIn$Target <- factor(PlotIn$Target, levels = c('Age to disease onset', 'Disease caused mortality'))
+LowBound = min(PlotIn$lower)-0.01
+UpBound = max(PlotIn$upper)+0.01
+
+sensAna2 <- ggplot(data = PlotIn, aes(x = as.factor(MaxSurvTime),y = OR, ymin = lower, ymax=upper, color = as.factor(MaxSurvTime), alpha = Target)) +
+  labs(title = "Susceptibility PGS association with disease-specific mortality\nunder various length of follow-up", tag = "B") +
+  scale_alpha_discrete(range = c(0, 1)) +
+  geom_pointrange(size = 0.5) +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = OR),color='black',lty='dashed') +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = lower),color='gray',lty='dashed') +
+  geom_hline(data = PlotIn[PlotIn$Target == 'Age to disease onset', ],aes(yintercept = upper),color='gray',lty='dashed') +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~Group, nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) +
+  theme(text = element_text(size = 12), strip.background = element_blank(), axis.title.y=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank(), strip.text = element_blank()) + 
+  scale_color_manual(labels = c('<=2 years', '<=5 years', '<=10 years', 'Unlimited'), values=c(colorBlindBlack8[2], colorBlindBlack8[3], colorBlindBlack8[4], colorBlindBlack8[6])) +
+  guides(alpha = "none") +
+  theme(legend.title = element_blank(), legend.position='bottom', plot.title = element_text(hjust = 0.5))
+print(sensAna2)
+```
+
+```{r Combining SensAna plots}
+jpeg(paste(OutFile, '-FigureS12.jpg', sep = ""), width = 4000, height = 2400, res=300)
+grid.arrange(sensAna1, sensAna2, nrow = 1, widths = c(2200, 1800))
+dev.off()
+```
+
+
+PRS x Age interaction
+```{r sensAna3}
+# PlotIn = Res[grepl("_Age", Res$Predictor) & !grepl("LongScore", Res$Predictor),]
+# PlotIn$OR = exp(PlotIn$Beta)
+# PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+# PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+# LowBound = min(PlotIn$lower)-0.0001
+# UpBound = max(PlotIn$upper)+0.0001
+
+# jpeg(paste(OutFile, '-rmed.jpg', sep = ""), width = 1200, height = 1000, res = 150)
+# sensAna3 <- ggplot(data = PlotIn, aes(x = Group,y = OR, ymin = lower, ymax=upper, color = colorBlindBlack8[4])) +
+#   geom_pointrange(size = 0.5) +
+#   geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+#   facet_wrap(~Group, nrow=10, scales = "free_y") +
+#   coord_flip() + # flip coordinates (puts labels on y axis)
+#   xlab("Disease") + ylab("Hazard ratio for disease susceptibility PRS x diagnosed age interaction") + ylim(LowBound, UpBound) +
+#   theme(text = element_text(size = 12), strip.background = element_blank(), axis.title.y=element_blank(), strip.text = element_blank()) +
+#   guides(color = "none")
+# print(sensAna3)
+# dev.off()
+```
+
+Stratified by age
+```{r sensAna4}
+PlotIn = Res[(Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp != 'All' & Res$Model == 'CoxPh') & grepl("_PRS", Res$Predictor) & (!grepl("_Age", Res$Predictor)) & Res$Target == 'Disease caused mortality',]
+PlotIn$OR = exp(PlotIn$Beta)
+PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+LowBound = min(PlotIn$lower)-0.0001
+UpBound = max(PlotIn$upper)+0.0001
+
+jpeg(paste(OutFile, '-FigureS13.jpg', sep = ""), width = 1200, height = 1000, res = 150)
+sensAna4 <- ggplot(data = PlotIn, aes(x = as.factor(AgeGrp),y = OR, ymin = lower, ymax=upper, color = as.factor(AgeGrp))) +
+  labs(title = "Susceptibility PGS association with disease-specific mortality\nstratified by age quantile") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~Group, strip.position="left", nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) +
+  theme(text = element_text(size = 12), strip.background = element_blank(), axis.title.y=element_blank(), axis.text.y=element_blank(), axis.ticks.y=element_blank(), strip.text.y.left = element_text(angle = 0)) + 
+  scale_color_manual(breaks = c('Lower', 'Upper'), labels = c('Lower 50%', 'Upper 50%'), values=c(colorBlindBlack8[2], colorBlindBlack8[3])) +
+  guides(alpha = "none") +
+  theme(legend.title = element_blank(), legend.position='bottom', plot.title = element_text(hjust = 0.5))
+print(sensAna4)
+dev.off()
+```
+
+
+
+
+
+
+
+Prepare file with all biobank result
+
+```{r AllRes prep}
+ResAll = ResAll[ResAll$w != 0, -'w']
+ResAll$Beta = as.numeric(ResAll$Beta)
+ResAll$SE = as.numeric(ResAll$SE)
+ResAll$Pval = as.numeric(ResAll$Pval)
+
+ResAll[ResAll$Disease == 'CKD' & ResAll$Predictor == 'scale(CKD_PRS)', 'Beta'] = -ResAll[ResAll$Disease == 'CKD' & ResAll$Predictor == 'scale(CKD_PRS)',]$Beta
+ResAll$Group = "Target"
+ResAll[ResAll$Disease == 'CKD', 'Group'] = 'Chronic kidney disease'
+ResAll[ResAll$Disease == 'CHD', 'Group'] = 'Coronary artery disease'
+ResAll[ResAll$Disease == 'T2D', 'Group'] = 'Type 2 diabetes'
+ResAll[ResAll$Disease == 'AD', 'Group'] = 'Alzheimer\'s disease'
+ResAll[ResAll$Disease == 'COLORECTAL', 'Group'] = 'Colorectal cancer'
+ResAll[ResAll$Disease == 'BREAST', 'Group'] = 'Breast cancer'
+ResAll[ResAll$Disease == 'PROSTATE', 'Group'] = 'Prostate cancer'
+# ResAll[ResAll$Disease == 'AF', 'Group'] = 'Atrial fibrillation'
+ResAll[ResAll$Disease == 'HF', 'Group'] = 'Heart failure'
+ResAll[ResAll$Disease == 'STR', 'Group'] = 'Stroke'
+ResAll[ResAll$Target == 'Death', 'Target'] = 'All cause mortality'
+ResAll[grepl("_Death", ResAll$Target), 'Target'] = 'Disease caused mortality'
+ResAll[ResAll$Target == 'TimeToOnset', 'Target'] = 'Age to disease onset'
+
+ResAll$lower = exp(ResAll$Beta - 1.96 * ResAll$SE)
+ResAll$upper = exp(ResAll$Beta + 1.96 * ResAll$SE)
+ResAll$OR = exp(ResAll$Beta)
+```
+
+
+
+With vs without relatedness (up to 2nd) in FinnGen
+```{r NoRelate}
+FinnGenRelate = "/Users/yangzhiy/Documents/Progression/Output/FinnGen/ResDownloadR12/PRS/ProgAnaOut"
+FinnGenNoRelate = "/Users/yangzhiy/Documents/Progression/Output/FinnGen/ResDownloadR12/PRS/ProgAnaOut-NoRelate"
+Res = fread(FinnGenRelate)
+Res = Res[Res$nEvent >= 10, ]
+Res$Beta = as.numeric(Res$Beta)
+Res$SE = as.numeric(Res$SE)
+Res[is.na(Res$Beta) | is.na(Res$SE) | is.na(Res$Pval),'Beta'] = 0.0
+Res[Res$Predictor == 'scale(LongScore)', 'Beta'] = -Res[Res$Predictor == 'scale(LongScore)',]$Beta
+Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)', 'Beta'] = -Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)',]$Beta
+Res$Group = "Target"
+Res[Res$Disease == 'CKD', 'Group'] = 'Chronic kidney disease'
+Res[Res$Disease == 'CHD', 'Group'] = 'Coronary artery disease'
+Res[Res$Disease == 'T2D', 'Group'] = 'Type 2 diabetes'
+Res[Res$Disease == 'AD', 'Group'] = 'Alzheimer\'s disease'
+Res[Res$Disease == 'COLORECTAL', 'Group'] = 'Colorectal cancer'
+Res[Res$Disease == 'BREAST', 'Group'] = 'Breast cancer'
+Res[Res$Disease == 'PROSTATE', 'Group'] = 'Prostate cancer'
+# Res[Res$Disease == 'AF', 'Group'] = 'Atrial fibrillation'
+Res[Res$Disease == 'HF', 'Group'] = 'Heart failure'
+Res[Res$Disease == 'STR', 'Group'] = 'Stroke'
+Res[Res$Target == 'Death', 'Target'] = 'All cause mortality'
+Res[grepl("_Death", Res$Target), 'Target'] = 'Disease caused mortality'
+Res[Res$Target == 'TimeToOnset', 'Target'] = 'Age to disease onset'
+ResOrg = Res
+tmp = Res[Res$Target == 'Disease caused mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp$N = paste("N=", tmp$nTotSample, " (", tmp$nEvent, " deaths)", sep = '')
+tmp = tmp[, c('Disease', 'N')]
+Res = merge(Res, tmp, by = 'Disease')
+# Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+#  'Atrial fibrillation', 'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart # failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+  'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+Res1 = Res[Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh' & 
+  Res$Target == 'Disease caused mortality' & !grepl("_Age", Res$Predictor) & !grepl("_mortality_PRS", Res$Predictor) & 
+  !grepl("LongScore", Res$Predictor), c('Disease', 'Beta', 'SE', 'Pval', 'nEvent', 'nTotSample', 'Group', 'N')]
+Res1$Ana = 'w.Related'
+
+
+Res = fread(FinnGenNoRelate)
+Res = Res[Res$nEvent >= 10, ]
+Res$Beta = as.numeric(Res$Beta)
+Res$SE = as.numeric(Res$SE)
+Res[is.na(Res$Beta) | is.na(Res$SE) | is.na(Res$Pval),'Beta'] = 0.0
+Res[Res$Predictor == 'scale(LongScore)', 'Beta'] = -Res[Res$Predictor == 'scale(LongScore)',]$Beta
+Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)', 'Beta'] = -Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)',]$Beta
+Res$Group = "Target"
+Res[Res$Disease == 'CKD', 'Group'] = 'Chronic kidney disease'
+Res[Res$Disease == 'CHD', 'Group'] = 'Coronary artery disease'
+Res[Res$Disease == 'T2D', 'Group'] = 'Type 2 diabetes'
+Res[Res$Disease == 'AD', 'Group'] = 'Alzheimer\'s disease'
+Res[Res$Disease == 'COLORECTAL', 'Group'] = 'Colorectal cancer'
+Res[Res$Disease == 'BREAST', 'Group'] = 'Breast cancer'
+Res[Res$Disease == 'PROSTATE', 'Group'] = 'Prostate cancer'
+# Res[Res$Disease == 'AF', 'Group'] = 'Atrial fibrillation'
+Res[Res$Disease == 'HF', 'Group'] = 'Heart failure'
+Res[Res$Disease == 'STR', 'Group'] = 'Stroke'
+Res[Res$Target == 'Death', 'Target'] = 'All cause mortality'
+Res[grepl("_Death", Res$Target), 'Target'] = 'Disease caused mortality'
+Res[Res$Target == 'TimeToOnset', 'Target'] = 'Age to disease onset'
+ResOrg = Res
+tmp = Res[Res$Target == 'Disease caused mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp$N = paste("N=", tmp$nTotSample, " (", tmp$nEvent, " deaths)", sep = '')
+tmp = tmp[, c('Disease', 'N')]
+Res = merge(Res, tmp, by = 'Disease')
+# Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+#  'Atrial fibrillation', 'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart # failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+  'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+Res2 = Res[Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh' & 
+  Res$Target == 'Disease caused mortality' & !grepl("_Age", Res$Predictor) & !grepl("_mortality_PRS", Res$Predictor) & 
+  !grepl("LongScore", Res$Predictor),c('Disease', 'Beta', 'SE', 'Pval', 'nEvent', 'nTotSample', 'Group', 'N')]
+Res2$Ana = 'wo.Related'
+
+
+PlotIn = rbind(Res1, Res2)
+PlotIn$OR = exp(PlotIn$Beta)
+PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+LowBound = min(PlotIn$lower)-0.001
+UpBound = max(PlotIn$upper)+0.001
+
+jpeg(paste(OutFile, '-FigureS14.jpg', sep = ""), width = 1200, height = 1500, res = 150)
+fp <- ggplot(data = PlotIn, aes(x = N,y = OR, ymin = lower, ymax=upper, color = Ana)) +
+  labs(title = "Susceptibility PGS association with disease-specific mortality\nwith and without related samples in FinnGen") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~Group, strip.position="top", nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) + 
+  theme(text = element_text(size = 12), strip.text.y.left = element_text(angle = 0), axis.title.y=element_blank(), 
+    plot.title = element_text(hjust = 0.5), legend.title = element_blank(), legend.position='bottom') + 
+  scale_color_manual(breaks = c('w.Related', 'wo.Related'), values=c(colorBlindBlack8[2], colorBlindBlack8[6])) 
+print(fp)
+dev.off()
+```
+
+
+Benchmark1: forest plot for disease PRS association with age of diagnosis
+```{r Forest1}
+PlotIn = ResAll[ResAll$Target == 'Age to disease onset' & ResAll$Model == 'CoxPh' & ResAll$MaxSurvTime == 999 
+                & ResAll$Sample == 'All' & ResAll$AgeGrp == 'All', ]
+LowBound = min(PlotIn$lower)-0.01
+UpBound = max(PlotIn$upper)+0.01
+forest1 <- ggplot(data = PlotIn, aes(x = Source,y = OR, ymin = lower, ymax=upper, color = Source)) +
+  labs(title = "Disease susceptibility PGS\nassociation with disease susceptibility", tag = "A") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1),color='red',lty='dashed') +
+  facet_wrap(~Group, strip.position="top",nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Biobank") + ylab("Hazard ratio") + ylim(LowBound, UpBound) +
+  theme_bw() + # use a white background 
+  theme(text = element_text(size = 12), axis.title.y=element_blank(), axis.text.y=element_blank(), 
+    plot.title = element_text(hjust = 0.5), axis.ticks.y=element_blank(), legend.position = "none")
+print(forest1)
+```
+
+Benchmark2: forest plot for disease PRS association with disease specific mortality
+```{r Forest2}
+PlotIn = ResAll[ResAll$Target == 'Disease caused mortality' & ResAll$Model == 'CoxPh' & ResAll$MaxSurvTime == 999 
+                & ResAll$Sample == 'All' & ResAll$AgeGrp == 'All', ]
+PlotIn = PlotIn[!grepl("_Age", PlotIn$Predictor),]
+PlotIn = PlotIn[grepl("_PRS", PlotIn$Predictor),]
+LowBound = min(PlotIn$lower)-0.01
+UpBound = max(PlotIn$upper)+0.01
+
+forest2 <- ggplot(data = PlotIn, aes(x = Source,y = OR, ymin = lower, ymax=upper, color = Source)) +
+  labs(title = "Disease susceptibility PGS\nassociation with disease-specific mortality", tag = "B") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1),color='red',lty='dashed') +
+  facet_wrap(~Group, strip.position="top",nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Biobank") + ylab("Hazard ratio") + ylim(LowBound, UpBound) +
+  theme_bw() + # use a white background 
+  theme(text = element_text(size = 12), axis.title.y=element_blank(), axis.text.y=element_blank(), 
+    plot.title = element_text(hjust = 0.5), axis.ticks.y=element_blank(), legend.position = "none")
+print(forest2)
+```
+
+Benchmark3: forest plot for disease PRS association with disease specific mortality, diagnosed after joined only
+```{r Forest3}
+PlotIn = ResAll[ResAll$Target == 'Disease caused mortality' & ResAll$Model == 'CoxPh' & ResAll$MaxSurvTime == 999 & ResAll$Sample == 'DiagAfterJoin' & ResAll$AgeGrp == 'All', ]
+PlotIn = PlotIn[!grepl("_Age", PlotIn$Predictor),]
+PlotIn = PlotIn[grepl("_PRS", PlotIn$Predictor),]
+LowBound = min(PlotIn$lower)-0.01
+UpBound = max(PlotIn$upper)+0.01
+
+forest3 <- ggplot(data = PlotIn, aes(x = Source,y = OR, ymin = lower, ymax=upper, color = Source)) +
+  labs(title = "Disease susceptibility PGS\nassociation with disease-specific mortality\nin individuals diagnosed after enrollment", tag = "C") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1),color='red',lty='dashed') +
+  facet_wrap(~Group, strip.position="top",nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Biobank") + ylab("Hazard ratio") + ylim(LowBound, UpBound) +
+  theme_bw() + # use a white background 
+  theme(text = element_text(size = 12), axis.title.y=element_blank(), axis.text.y=element_blank(), 
+    plot.title = element_text(hjust = 0.5), axis.ticks.y=element_blank(), legend.position = "right")
+
+shared_legend = extract_legend(forest3)
+
+forest3 <- ggplot(data = PlotIn, aes(x = Source,y = OR, ymin = lower, ymax=upper, color = Source)) +
+  labs(title = "Disease susceptibility PGS\nassociation with disease-specific mortality\nin individuals diagnosed after enrollment", tag = "C") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1),color='red',lty='dashed') +
+  facet_wrap(~Group, strip.position="top",nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Biobank") + ylab("Hazard ratio") + ylim(LowBound, UpBound) +
+  theme_bw() + # use a white background 
+  theme(text = element_text(size = 12), axis.title.y=element_blank(), axis.text.y=element_blank(), 
+    plot.title = element_text(hjust = 0.5), axis.ticks.y=element_blank(), legend.position = "none")
+print(forest3)
+```
+
+```{r Combining plots}
+jpeg(paste(OutFile, '-FigureS15.jpg', sep = ""), width = 4200, height = 3000, res=300)
+grid.arrange(forest1, forest2, forest3, shared_legend, nrow = 1, widths = c(1500, 1500, 1500, 700))
+dev.off()
+```
+
+```{r mortPRS exp Finngen}
+FinnGenRes = "/Users/yangzhiy/Documents/Progression/Output/FinnGen/ResDownloadR12/PRS/ProgAnaOut"
+Res = fread(FinnGenRes)
+Res = Res[Res$nEvent >= 10, ]
+Res$Beta = as.numeric(Res$Beta)
+Res$SE = as.numeric(Res$SE)
+Res[is.na(Res$Beta) | is.na(Res$SE) | is.na(Res$Pval),'Beta'] = 0.0
+
+Res[Res$Predictor == 'scale(LongScore)', 'Beta'] = -Res[Res$Predictor == 'scale(LongScore)',]$Beta
+Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)', 'Beta'] = -Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)',]$Beta
+Res$Group = "Target"
+Res[Res$Disease == 'CKD', 'Group'] = 'Chronic kidney disease'
+Res[Res$Disease == 'CHD', 'Group'] = 'Coronary artery disease'
+Res[Res$Disease == 'T2D', 'Group'] = 'Type 2 diabetes'
+Res[Res$Disease == 'AD', 'Group'] = 'Alzheimer\'s disease'
+Res[Res$Disease == 'COLORECTAL', 'Group'] = 'Colorectal cancer'
+Res[Res$Disease == 'BREAST', 'Group'] = 'Breast cancer'
+Res[Res$Disease == 'PROSTATE', 'Group'] = 'Prostate cancer'
+# Res[Res$Disease == 'AF', 'Group'] = 'Atrial fibrillation'
+Res[Res$Disease == 'HF', 'Group'] = 'Heart failure'
+Res[Res$Disease == 'STR', 'Group'] = 'Stroke'
+Res[Res$Target == 'Death', 'Target'] = 'All cause mortality'
+Res[grepl("_Death", Res$Target), 'Target'] = 'Disease caused mortality'
+Res[Res$Target == 'TimeToOnset', 'Target'] = 'Age to disease onset'
+ResOrg = Res
+
+tmp = Res[Res$Target == 'Disease caused mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp$N = paste("N=", tmp$nTotSample, " (", tmp$nEvent, " deaths)", sep = '')
+tmp$title = paste(tmp$Group, '\n', tmp$N, sep = '')
+tmp = tmp[, c('Disease', 'title')]
+Res = merge(Res, tmp, by = 'Disease')
+# Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+#   'Atrial fibrillation', 'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart # failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+  'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+
+
+PlotIn = Res[Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh' & Res$Target == 'Disease caused mortality',]
+PlotIn = PlotIn[(!grepl("_Age", PlotIn$Predictor)) ,]
+PlotIn[PlotIn$Predictor == "scale(LongScore)", 'Predictor'] = 'Longevity PRS'
+PlotIn[grepl("_mortality_PRS", PlotIn$Predictor), 'Predictor'] = 'Disease mortality PRS'
+PlotIn[grepl("_PRS", PlotIn$Predictor), 'Predictor'] = 'Disease susceptibility PRS'
+PlotIn = PlotIn[PlotIn$Group %in% PlotIn[PlotIn$Predictor == 'Disease mortality PRS', ]$Group, ]
+PlotIn$OR = exp(PlotIn$Beta)
+PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+PlotIn$Predictor <- factor(PlotIn$Predictor, levels = c('Disease susceptibility PRS', 'Longevity PRS', 'Disease mortality PRS'))
+LowBound = min(PlotIn$lower)-0.001
+UpBound = max(PlotIn$upper)+0.001
+
+jpeg(paste(OutFile, '-FigureS17.jpg', sep = ""), width = 1200, height = 1000, res = 150)
+fp <- ggplot(data = PlotIn, aes(x = Predictor,y = OR, ymin = lower, ymax=upper, color = Predictor)) +
+  labs(title = "PGS association with disease-specific mortality in FinnGen") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~title, strip.position="left",nrow=4, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) + 
+  theme(text = element_text(size = 12), strip.background = element_blank(), strip.text.y.left = element_text(angle = 0), axis.title.y=element_blank(), legend.title = element_blank(), plot.title = element_text(hjust = 0.5), legend.position='bottom', axis.text.y=element_blank(), axis.ticks.y=element_blank()) + 
+  scale_color_manual(breaks = c('Disease susceptibility PRS', 'Longevity PRS', 'Disease mortality PRS'), labels = c('PGS for disease susceptibility', 'PGS for longevity', 'PGS for disease-specific mortality'), values=c(colorBlindBlack8[2], colorBlindBlack8[6], colorBlindBlack8[4])) 
+print(fp)
+dev.off()
+
+
+Res = ResOrg
+tmp = Res[Res$Target == 'Disease caused mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp1 = tmp[, c('Group', 'Disease', 'nTotSample', 'nEvent')]
+tmp = Res[Res$Target == 'All cause mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp2 = tmp[, c('Group', 'Disease', 'nTotSample', 'nEvent')]
+tmp = merge(tmp1, tmp2, by = c('Group', 'Disease', 'nTotSample'))
+tmp$N = paste("N=", tmp$nTotSample, " (", tmp$nEvent.x, "/", tmp$nEvent.y, " deaths)", sep = '')
+tmp$title = paste(tmp$Group, '\n', tmp$N, sep = '')
+tmp = tmp[, c('Disease', 'title')]
+
+Res = merge(Res, tmp, by = 'Disease')
+# Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+#   'Atrial fibrillation', 'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart # failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+  'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+
+PlotIn = Res[Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh' & Res$Target %in% c('Disease caused mortality', 'All cause mortality'),]
+PlotIn = PlotIn[(!grepl("_Age", PlotIn$Predictor)) & PlotIn$Predictor != 'scale(LongScore)' & (!grepl("_mortality_PRS", PlotIn$Predictor)),]
+PlotIn[grepl("_PRS", PlotIn$Predictor), 'Predictor'] = 'Disease susceptibility PRS'
+PlotIn$OR = exp(PlotIn$Beta)
+PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+LowBound = min(PlotIn$lower)-0.001
+UpBound = max(PlotIn$upper)+0.001
+
+jpeg(paste(OutFile, '-FigureS11.jpg', sep = ""), width = 1200, height = 1000, res = 150)
+fp <- ggplot(data = PlotIn, aes(x = Target,y = OR, ymin = lower, ymax=upper, color = Target)) +
+  labs(title = "Disease susceptibility PGS association with mortality in FinnGen") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~title, strip.position="left",nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) + 
+  theme(text = element_text(size = 12), strip.background = element_blank(), strip.text.y.left = element_text(angle = 0), axis.title.y=element_blank(), 
+    plot.title = element_text(hjust = 0.5), legend.title = element_blank(), legend.position='bottom', axis.text.y=element_blank(), axis.ticks.y=element_blank()) + 
+  scale_color_manual(breaks = c('Disease caused mortality', 'All cause mortality'), labels = c('Disease-specific mortality', 'All-cause mortality'), values=c(colorBlindBlack8[6], colorBlindBlack8[2])) 
+print(fp)
+dev.off()
+```
+
+
+```{r mortPRS non-European}
+GeneAndHealth = "/Users/yangzhiy/Documents/Progression/Output/GenesAndHealthRes/GNH_SAS_ProgAnaOut"
+Res = fread(OutFile)
+Res = Res[Res$nEvent >= 10, ]
+Res$Beta = as.numeric(Res$Beta)
+Res$SE = as.numeric(Res$SE)
+Res[is.na(Res$Beta) | is.na(Res$SE) | is.na(Res$Pval),'Beta'] = 0.0
+
+Res[Res$Predictor == 'scale(LongScore)', 'Beta'] = -Res[Res$Predictor == 'scale(LongScore)',]$Beta
+Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)', 'Beta'] = -Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)',]$Beta
+Res$Group = "Target"
+Res[Res$Disease == 'CKD', 'Group'] = 'Chronic kidney disease'
+Res[Res$Disease == 'CHD', 'Group'] = 'Coronary artery disease'
+Res[Res$Disease == 'T2D', 'Group'] = 'Type 2 diabetes'
+Res[Res$Disease == 'AD', 'Group'] = 'Alzheimer\'s disease'
+Res[Res$Disease == 'COLORECTAL', 'Group'] = 'Colorectal cancer'
+Res[Res$Disease == 'BREAST', 'Group'] = 'Breast cancer'
+Res[Res$Disease == 'PROSTATE', 'Group'] = 'Prostate cancer'
+# Res[Res$Disease == 'AF', 'Group'] = 'Atrial fibrillation'
+Res[Res$Disease == 'HF', 'Group'] = 'Heart failure'
+Res[Res$Disease == 'STR', 'Group'] = 'Stroke'
+Res[Res$Target == 'Death', 'Target'] = 'All cause mortality'
+Res[grepl("_Death", Res$Target), 'Target'] = 'Disease caused mortality'
+Res[Res$Target == 'TimeToOnset', 'Target'] = 'Age to disease onset'
+
+
+tmp = Res[Res$Target == 'Disease caused mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp$N = paste("N=", tmp$nTotSample, " (", tmp$nEvent, " deaths)", sep = '')
+tmp$title = paste(tmp$Group, '\n', tmp$N, sep = '')
+tmp = tmp[, c('Disease', 'title')]
+Res = merge(Res, tmp, by = 'Disease')
+# Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+#  'Atrial fibrillation', 'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart # failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+  'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+
+Res = Res[Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh' & Res$Target == 'Disease caused mortality' & grepl("_PRS", Res$Predictor) & (!grepl("_Age", Res$Predictor)),]
+Res[grepl("_PRS", Res$Predictor), 'Predictor'] = 'Disease susceptibility PRS'
+EURres = Res
+EURres$Pop = 'EUR'
+
+
+Res = fread(GeneAndHealth)
+Res = Res[Res$nEvent >= 10, ]
+Res$Beta = as.numeric(Res$Beta)
+Res$SE = as.numeric(Res$SE)
+Res[is.na(Res$Beta) | is.na(Res$SE) | is.na(Res$Pval),'Beta'] = 0.0
+
+Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)', 'Beta'] = -Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)',]$Beta
+Res$Group = "Target"
+Res[Res$Disease == 'CKD', 'Group'] = 'Chronic kidney disease'
+Res[Res$Disease == 'CHD', 'Group'] = 'Coronary artery disease'
+Res[Res$Disease == 'T2D', 'Group'] = 'Type 2 diabetes'
+Res[Res$Disease == 'AD', 'Group'] = 'Alzheimer\'s disease'
+Res[Res$Disease == 'COLORECTAL', 'Group'] = 'Colorectal cancer'
+Res[Res$Disease == 'BREAST', 'Group'] = 'Breast cancer'
+Res[Res$Disease == 'PROSTATE', 'Group'] = 'Prostate cancer'
+# Res[Res$Disease == 'AF', 'Group'] = 'Atrial fibrillation'
+Res[Res$Disease == 'HF', 'Group'] = 'Heart failure'
+Res[Res$Disease == 'STR', 'Group'] = 'Stroke'
+Res[Res$Target == 'Death', 'Target'] = 'All cause mortality'
+Res[grepl("_Death", Res$Target), 'Target'] = 'Disease caused mortality'
+Res[Res$Target == 'TimeToOnset', 'Target'] = 'Age to disease onset'
+
+tmp = Res[Res$Target == 'Disease caused mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp$N = paste("N=", tmp$nTotSample, " (", tmp$nEvent, " deaths)", sep = '')
+tmp$title = paste(tmp$Group, '\n', tmp$N, sep = '')
+tmp = tmp[, c('Disease', 'title')]
+Res = merge(Res, tmp, by = 'Disease')
+# Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+#   'Atrial fibrillation', 'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart # failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+  'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+
+Res = Res[Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh' & Res$Target == 'Disease caused mortality' & grepl("_PRS", Res$Predictor) & (!grepl("_Age", Res$Predictor)),]
+Res[grepl("_PRS", Res$Predictor), 'Predictor'] = 'Disease susceptibility PRS'
+SASres = Res
+SASres$Pop = 'SAS'
+
+PlotIn = rbind(EURres[, c('Group', 'Pop', 'Beta', 'SE', 'nEvent', 'nTotSample')], SASres[, c('Group', 'Pop', 'Beta', 'SE', 'nEvent', 'nTotSample')])
+PlotIn = PlotIn[PlotIn$Group %in% PlotIn[PlotIn$Pop == 'SAS', ]$Group, ]
+PlotIn$N = paste("N=", PlotIn$nTotSample, " (", PlotIn$nEvent, " deaths)", sep = '')
+PlotIn$OR = exp(PlotIn$Beta)
+PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+PlotIn$Pop <- factor(PlotIn$Pop, levels = c('EUR', 'SAS'))
+LowBound = min(PlotIn$lower)-0.001
+UpBound = max(PlotIn$upper)+0.001
+
+jpeg(paste(OutFile, '-FigureS16.jpg', sep = ""), width = 1200, height = 1000, res = 150)
+fp <- ggplot(data = PlotIn, aes(x = N,y = OR, ymin = lower, ymax=upper, color = Pop)) +
+  labs(title = "Disease susceptibility PGS association wtih disease-specific mortality") +
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~Group, strip.position="top", nrow=5, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) + 
+  theme(text = element_text(size = 12), strip.text.y.left = element_text(angle = 0), axis.title.y=element_blank(), 
+    plot.title = element_text(hjust = 0.5), legend.title = element_blank(), legend.position='bottom') + 
+  scale_color_manual(breaks = c('EUR', 'SAS'), labels = c('Europeans', 'South Asian'), values=c(colorBlindBlack8[2], colorBlindBlack8[6])) 
+print(fp)
+dev.off()
+```
+
+
+```{r Finngen AltMort Comp}
+Res = fread("/Users/yangzhiy/Documents/Progression/Output/FinnGen/ResDownloadR12/PRS/ProgAnaOut-NewMort")
+Res = Res[Res$AnaFlag == 0,]
+Res$Beta = as.numeric(Res$Beta)
+Res$SE = as.numeric(Res$SE)
+Res$Pval = as.numeric(Res$Pval)
+
+# Res[Res$Predictor == 'scale(LongScore)', 'Beta'] = -Res[Res$Predictor == 'scale(LongScore)',]$Beta
+Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)', 'Beta'] = -Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)',]$Beta
+Res$Group = "Target"
+Res[Res$Disease == 'CKD', 'Group'] = 'Chronic kidney disease'
+Res[Res$Disease == 'CHD', 'Group'] = 'Coronary artery disease'
+Res[Res$Disease == 'T2D', 'Group'] = 'Type 2 diabetes'
+Res[Res$Disease == 'AD', 'Group'] = 'Alzheimer\'s disease'
+Res[Res$Disease == 'COLORECTAL', 'Group'] = 'Colorectal cancer'
+Res[Res$Disease == 'BREAST', 'Group'] = 'Breast cancer'
+Res[Res$Disease == 'PROSTATE', 'Group'] = 'Prostate cancer'
+# Res[Res$Disease == 'AF', 'Group'] = 'Atrial fibrillation'
+Res[Res$Disease == 'HF', 'Group'] = 'Heart failure'
+Res[Res$Disease == 'STR', 'Group'] = 'Stroke'
+
+Res[Res$Target == 'Death', 'Target'] = 'All cause mortality'
+Res[grepl("_Death", Res$Target), 'Target'] = 'Disease caused mortality'
+Res[Res$Target == 'TimeToOnset', 'Target'] = 'Age to disease onset'
+
+tmp = Res[Res$Target == 'Disease caused mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp$N = paste("N=", tmp$nTotSample, " (", tmp$nEvent, " deaths)", sep = '')
+tmp$title = paste(tmp$Group, '\n', tmp$N, sep = '')
+tmp = tmp[, c('Disease', 'title')]
+
+Res = merge(Res, tmp, by = 'Disease')
+Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+  'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+
+PlotIn = Res[Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh',]
+PlotIn$OR = exp(PlotIn$Beta)
+PlotIn$lower = exp(PlotIn$Beta - 1.96 * PlotIn$SE)
+PlotIn$upper = exp(PlotIn$Beta + 1.96 * PlotIn$SE)
+PlotIn[PlotIn$Predictor == "scale(LongScore)", 'Predictor'] = "Composite mortality PRS"
+PlotIn = PlotIn[(!grepl("_Age", PlotIn$Predictor)) & (PlotIn$Target == 'Disease caused mortality') & (!grepl("_mortality_PRS", PlotIn$Predictor)),]
+PlotIn[grepl("_PRS", PlotIn$Predictor), 'Predictor'] = "Disease susceptibility PRS"
+
+Res = fread("/Users/yangzhiy/Documents/Progression/Output/FinnGen/ResDownloadR12/PRS/ProgAnaOut")
+Res = Res[Res$AnaFlag == 0,]
+Res$Beta = as.numeric(Res$Beta)
+Res$SE = as.numeric(Res$SE)
+Res$Pval = as.numeric(Res$Pval)
+
+Res[Res$Predictor == 'scale(LongScore)', 'Beta'] = -Res[Res$Predictor == 'scale(LongScore)',]$Beta
+Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)', 'Beta'] = -Res[Res$Disease == 'CKD' & Res$Predictor == 'scale(CKD_PRS)',]$Beta
+Res$Group = "Target"
+Res[Res$Disease == 'CKD', 'Group'] = 'Chronic kidney disease'
+Res[Res$Disease == 'CHD', 'Group'] = 'Coronary artery disease'
+Res[Res$Disease == 'T2D', 'Group'] = 'Type 2 diabetes'
+Res[Res$Disease == 'AD', 'Group'] = 'Alzheimer\'s disease'
+Res[Res$Disease == 'COLORECTAL', 'Group'] = 'Colorectal cancer'
+Res[Res$Disease == 'BREAST', 'Group'] = 'Breast cancer'
+Res[Res$Disease == 'PROSTATE', 'Group'] = 'Prostate cancer'
+Res[Res$Disease == 'HF', 'Group'] = 'Heart failure'
+Res[Res$Disease == 'STR', 'Group'] = 'Stroke'
+
+Res[Res$Target == 'Death', 'Target'] = 'All cause mortality'
+Res[grepl("_Death", Res$Target), 'Target'] = 'Disease caused mortality'
+Res[Res$Target == 'TimeToOnset', 'Target'] = 'Age to disease onset'
+
+tmp = Res[Res$Target == 'Disease caused mortality' & Res$Model == 'CoxPh' & Res$MaxSurvTime == 999 & Res$AgeGrp == 'All' & Res$Sample == 'All']
+tmp = tmp[(!grepl("_Age", tmp$Predictor)) & (!tmp$Predictor != 'scale(LongScore)'),]
+tmp$N = paste("N=", tmp$nTotSample, " (", tmp$nEvent, " deaths)", sep = '')
+tmp$title = paste(tmp$Group, '\n', tmp$N, sep = '')
+tmp = tmp[, c('Disease', 'title')]
+
+Res = merge(Res, tmp, by = 'Disease')
+Res$Group = factor(Res$Group, levels=c('Alzheimer\'s disease', 
+  'Breast cancer', 'Chronic kidney disease', 'Colorectal cancer', 'Coronary artery disease', 'Heart failure', 'Prostate cancer', 'Stroke', 'Type 2 diabetes'))
+
+tmp = Res[Res$MaxSurvTime == 999 & Res$Sample == 'All' & Res$AgeGrp == 'All' & Res$Model == 'CoxPh',]
+tmp$OR = exp(tmp$Beta)
+tmp$lower = exp(tmp$Beta - 1.96 * tmp$SE)
+tmp$upper = exp(tmp$Beta + 1.96 * tmp$SE)
+tmp[tmp$Predictor == "scale(LongScore)", 'Predictor'] = "Longevity PRS"
+tmp = tmp[(tmp$Predictor == "Longevity PRS") & (tmp$Target == 'Disease caused mortality'),]
+tmp[grepl("_PRS", tmp$Predictor), 'Predictor'] = "Disease susceptibility PRS"
+
+PlotIn = rbind(PlotIn, tmp)
+PlotIn$Predictor <- factor(PlotIn$Predictor, levels = c('Disease susceptibility PRS', 'Longevity PRS', 'Composite mortality PRS'))
+LowBound = min(PlotIn$lower)-0.01
+UpBound = max(PlotIn$upper)+0.01
+
+jpeg(paste(OutFile, '-FigureSXX.jpg', sep = ""), width = 1500, height = 1000, res = 150)
+fp <- ggplot(data = PlotIn, aes(x = Predictor,y = OR, ymin = lower, ymax=upper, color = Predictor)) +
+  labs(title = "PGS association with disease-specific mortality in FinnGen") + 
+  geom_pointrange(size = 0.5) +
+  geom_hline(aes(yintercept = 1.0),color=colorBlindBlack8[8],lty='dashed') +
+  facet_wrap(~title, strip.position="left",nrow=10, scales = "free_y") +
+  coord_flip() + # flip coordinates (puts labels on y axis)
+  xlab("Disease") + ylab("Hazard ratio") + ylim(LowBound, UpBound) + 
+  theme(text = element_text(size = 12), strip.background = element_blank(), axis.title.y=element_blank(), axis.text.y=element_blank(), legend.title = element_blank(), legend.position='bottom', strip.text.y.left = element_text(angle = 0), axis.ticks.y=element_blank(), plot.title = element_text(hjust = 0.5)) + 
+  scale_color_manual(breaks = c('Disease susceptibility PRS', 'Longevity PRS', 'Composite mortality PRS'), labels=c('Disease susceptibility PGS', 'Longevity PGS', 'Composite mortality PRS'), values=c(colorBlindBlack8[2], colorBlindBlack8[6], colorBlindBlack8[3])) 
+print(fp)
+dev.off()
+```
+
+
+
+
+
